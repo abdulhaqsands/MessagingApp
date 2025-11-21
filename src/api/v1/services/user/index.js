@@ -16,17 +16,17 @@ class UserService {
     });
 
     if (!exist_user) {
-      throw new Error("Unauthorized User");
+      // throw new Error("Unauthorized User");
 
-      // const err = new Error("Unauthorized User");
-      // err.statusCode = 401; // HTTP status
-      // throw err;
+      const err = new Error("Unauthorized User");
+      err.statusCode = 401; // HTTP status
+      throw err;
     }
     if (exist_user.password !== password) {
-      throw new Error("Ivalid Email or Password");
-      // const err = new Error("Invalid Username or Password");
-      // err.statusCode = 401;
-      // throw err;
+      // throw new Error("Ivalid Email or Password");
+      const err = new Error("Invalid Username or Password");
+      err.statusCode = 401;
+      throw err;
     }
 
     const { access_token, refresh_token } = await helper.create_session({

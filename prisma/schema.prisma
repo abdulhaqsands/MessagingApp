@@ -1,0 +1,170 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ROLE {
+  USER
+  COACH
+}
+
+model user {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      ROLE     @default(USER)
+  isBlooked Boolean? @default(false)
+
+  // Messages
+  sentMessages     message[] @relation("SentMessages")
+  receivedMessages message[] @relation("ReceivedMessages")
+
+  // Groups
+  createdGroups group[]       @relation("GroupCreator")
+  joinedGroups  groupMember[]
+
+  // Rooms (1-to-1 or group)
+  roomMembers       roomMember[]
+  messageReadStatus messageReadStatus[]
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  userSessions User_Session[] @relation("UserUserSessions")
+}
+
+model User_Session {
+  id      Int  @id @default(autoincrement())
+  user_id Int?
+
+  fcm_token     String? @db.LongText
+  refresh_token String  @unique @db.VarChar(255)
+
+  user user? @relation("UserUserSessions", fields: [user_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @updatedAt
+}
+
+model message {
+  id   Int     @id @default(autoincrement())
+  text String?
+
+  senderId   Int
+  receiverId Int?
+
+  status    String?   @default("sent") // sent / delivered / failed
+  editedAt  DateTime?
+  deletedAt DateTime?
+
+  // 1-to-1 message relations
+  sender   user  @relation("SentMessages", fields: [senderId], references: [id])
+  receiver user? @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  // Room & Group relations
+  room    room?  @relation("RoomMessages", fields: [roomId], references: [id])
+  roomId  Int?
+  group   group? @relation("GroupMessages", fields: [groupId], references: [id])
+  groupId Int?
+
+  mediaAttachments mediaAttachment[]
+
+  // Read/unread tracking (for 1-to-1 or group messages)
+  messageReadStatuses messageReadStatus[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([roomId])
+  @@index([groupId])
+}
+
+model mediaAttachment {
+  id      Int     @id @default(autoincrement())
+  fileUrl String?
+
+  messageId Int
+  message   message @relation(fields: [messageId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model group {
+  id        Int    @id @default(autoincrement())
+  groupName String @unique
+  createdBy Int
+
+  creator      user          @relation("GroupCreator", fields: [createdBy], references: [id])
+  groupMembers groupMember[]
+  messages     message[]     @relation("GroupMessages")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model groupMember {
+  id      Int @id @default(autoincrement())
+  groupId Int
+  userId  Int
+
+  group group @relation(fields: [groupId], references: [id])
+  user  user  @relation(fields: [userId], references: [id])
+
+  joinedAt DateTime @default(now())
+
+  @@unique([groupId, userId]) // ek user ek group me sirf ek bar ho
+}
+
+model room {
+  id      Int     @id @default(autoincrement())
+  isGroup Boolean @default(false) // false for 1-to-1 chat
+  name    String? // optional, mainly for group chat
+
+  messages message[]    @relation("RoomMessages")
+  members  roomMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id]) // optional, har room unique hai
+}
+
+model roomMember {
+  id     Int @id @default(autoincrement())
+  roomId Int
+  userId Int
+
+  room room @relation(fields: [roomId], references: [id])
+  user user @relation(fields: [userId], references: [id])
+
+  joinedAt DateTime @default(now())
+
+  @@unique([roomId, userId]) // ek user ek room me sirf ek bar ho
+}
+
+model messageReadStatus {
+  id        Int     @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  isRead    Boolean @default(false)
+
+  message message @relation(fields: [messageId], references: [id])
+  user    user    @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([messageId])
+}
